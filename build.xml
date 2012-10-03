@@ -1,0 +1,605 @@
+<!-- This Source Code Form is subject to the terms of the Mozilla Public
+   - License, v. 2.0. If a copy of the MPL was not distributed with this
+      - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
+
+<!-- ======================================================================
+	CBF Main File - http://cbf.webdetails.org
+====================================================================== -->
+
+<project name="pentaho-build" default="all" >
+	<description>Pentaho BI Platform build helper..</description>
+
+	<fail message="FATAL: 'project' property not set. Please provide it the ant command, eg: ant -Dproject=myproject -Denv=dev" unless="project"/>
+	<condition property="config.properties" value="build-${env}.properties" else="build.properties">
+		<isset property="env"/>
+	</condition>
+
+	<property name="target-dist" value="target-dist"/>
+
+	<property name="config.properties.path" value="project-${project}/config/${config.properties}"/>
+	<property name="config.properties.default.path" value="project-${project}/config/build.properties"/>
+
+	<available file="${config.properties.path}" type="file" property="config.properties.exists"/>
+	<fail message="FATAL: Configuration file not found at ${config.properties.path}" unless="config.properties.exists"/>
+
+	<property file="${config.properties.path}"/>
+	<property file="${config.properties.default.path}"/>
+	
+	<property name="jre.dir" value="../dummy-jre" />
+
+	<!-- Ctools installer properties -->
+	<property name="ctools.install" value="false"/>
+	<property name="ctools.branch" value="stable"/>
+
+	<condition property="choose.JBoss">
+		<equals arg1="jboss" arg2="${server.name}"/>
+	</condition>
+
+	<condition property="choose.Tomcat">
+		<equals arg1="tomcat" arg2="${server.name}"/>
+	</condition>
+
+	<!-- compile dependencies? -->
+	<condition property="compile.pentaho.dependencies" value="true" else="false">
+		<and>
+			<isset property="compile.pentaho.dependencies" />
+			<equals arg1="true" arg2="${compile.pentaho.dependencies}"/>
+		</and>
+	</condition>
+
+	<!-- Installing ctools bundle? -->
+	<condition property="install.ctools">
+		<istrue value="${ctools.install}"/>
+	</condition>
+
+	<!-- Copy samples? -->
+	<condition property="copy.samples">
+		<equals arg1="true" arg2="${copy.pentaho.samples}"/>
+	</condition>
+
+	<!-- Deploy conditions -->
+	<condition property="deploy.mode.rsync">
+		<equals arg1="rsync" arg2="${deploy.mode}"/>
+	</condition>
+
+
+	<!-- We don't need this anymore, as we'll copy the system and admin dir later on -->
+	<!--available file="${solution.path}/system/pentaho.xml" type="file" property="pentaho.xml.exists"/>
+	<fail message="FATAL: pentaho.xml file not found at ${solution.path}/system/pentaho.xml . You sure you didn't forget to copy the system/ and admin/ subdirectories from pentaho-solutions?" unless="pentaho.xml.exists"/-->
+
+
+
+	<echo>--------------------------------------------------------------</echo>
+	<echo>--------------------------------------------------------------</echo>
+	<echo>------       CBF - Community Build Framework           -------</echo>
+	<echo>------                 Version: 5.1                    -------</echo>
+	<echo>------ Author: Pedro Alves (pedro.alves@webdetails.pt) -------</echo>
+	<echo>--------------------------------------------------------------</echo>
+	<echo>--------------------------------------------------------------</echo>
+	<echo></echo>
+	<echo>                         SETTINGS:                            </echo>
+	<echo></echo>
+	<echo>   Project:		${project}</echo>
+	<echo>   Environment:	${config.properties}</echo>
+	<echo>   Config File:	${config.properties.path}</echo>
+	<echo>--------------------------------------------------------------</echo>
+	<echo>--------------------------------------------------------------</echo>
+
+
+	<target name="init">
+		<echo>Building project ${project}</echo>
+
+	</target>
+
+
+	<target name="copy-init" depends="init" description="Copy project files">
+		<!-- apply Copy dir -->
+		<echo>Copying files</echo>
+		<copy todir="${pentaho.build.dir}" failonerror="true" verbose="false" overwrite="false">
+			<fileset dir="${pentaho.dir}">
+				<exclude name="out/**"/><!-- idea build files -->
+				<exclude name="test-solutions/**"/><!-- idea build files -->
+			</fileset>
+		</copy>
+
+		<!-- apply patches -->
+		<echo>Applying patches</echo>
+		<copy todir="." failonerror="true" verbose="false" overwrite="true" filtering="true">
+			<fileset dir="project-${project}/patches/">
+				<include name="**/*.java"/>
+				<include name="**/*.xml"/>
+				<include name="**/*.conf"/>
+				<include name="**/*.txt"/>
+				<include name="**/*.ktr"/>
+				<include name="**/*.kjb"/>
+				<include name="**/*.js"/>
+				<include name="**/*.jsp"/>
+				<include name="**/*.properties"/>
+			</fileset>
+			<filterset>
+				<!-- Unlike properties, filters are overwritten, so we invert the order of the files -->
+				<filtersfile file="${config.properties.default.path}"/>
+				<filtersfile file="${config.properties.path}"/>
+			</filterset>
+		</copy>
+
+		<copy todir="." failonerror="true" verbose="false" overwrite="true">
+			<fileset dir="project-${project}/patches/">
+				<exclude name="**/*.java"/>
+				<exclude name="**/*.xml"/>
+				<exclude name="**/*.conf"/>
+				<exclude name="**/*.txt"/>
+				<exclude name="**/*.ktr"/>
+				<exclude name="**/*.kjb"/>
+				<exclude name="**/*.js"/>
+				<exclude name="**/*.jsp"/>
+				<exclude name="**/*.properties"/>
+			</fileset>
+		</copy>
+	</target>
+
+	<target name="stage-ee" depends="init" description="Setup Enterprise Edition staging directory">
+		<!-- prepare Copy dir -->
+		<echo>Preparing directory structure</echo>
+		<delete dir="target-ee" />
+		<mkdir dir="target-ee/server"/>
+		<mkdir dir="target-ee/enterprise-console"/>
+		<mkdir dir="target-ee/solution"/>
+		<!-- ************
+                      copy files
+                     ************ -->
+		<echo>Applying patches</echo>
+
+		<!-- ${target-dist}/server hierarchy -->
+		<echo>  Copying server patches</echo>
+		<copy todir="target-ee/server" failonerror="true" verbose="false" overwrite="true" filtering="true">
+			<fileset dir="project-${project}/patches/${target-dist}/server/">
+				<include name="**/*.java"/>
+				<include name="**/*.xml"/>
+				<include name="**/*.conf"/>
+				<include name="**/*.txt"/>
+				<include name="**/*.kjb"/>
+				<include name="**/*.ktr"/>
+				<include name="**/*.js"/>
+				<include name="**/*.jsp"/>
+				<include name="**/*.properties"/>
+			</fileset>
+			<filterset>
+				<!-- Unlike properties, filters are overwritten, so we invert the order of the files -->
+				<filtersfile file="${config.properties.default.path}"/>
+				<filtersfile file="${config.properties.path}"/>
+			</filterset>
+		</copy>
+
+		<copy todir="target-ee/server" failonerror="true" verbose="false" overwrite="true">
+			<fileset dir="project-${project}/patches/${target-dist}/server/">
+				<exclude name="**/*.java"/>
+				<exclude name="**/*.xml"/>
+				<exclude name="**/*.conf"/>
+				<exclude name="**/*.txt"/>
+				<exclude name="**/*.ktr"/>
+				<exclude name="**/*.kjb"/>
+				<exclude name="**/*.js"/>
+				<exclude name="**/*.jsp"/>
+				<exclude name="**/*.properties"/>
+			</fileset>
+		</copy>
+
+		<!-- ${target-dist}/enterprise-console hierarchy -->
+		<echo>  Copying enterprise-console patches</echo>
+		<copy todir="target-ee/enterprise-console" failonerror="false" verbose="false" overwrite="true" filtering="true">
+			<fileset dir="project-${project}/patches/${target-dist}/enterprise-console/">
+				<include name="**/*.java"/>
+				<include name="**/*.xml"/>
+				<include name="**/*.conf"/>
+				<include name="**/*.txt"/>
+				<include name="**/*.kjb"/>
+				<include name="**/*.ktr"/>
+				<include name="**/*.js"/>
+				<include name="**/*.jsp"/>
+				<include name="**/*.properties"/>
+			</fileset>
+			<filterset>
+				<!-- Unlike properties, filters are overwritten, so we invert the order of the files -->
+				<filtersfile file="${config.properties.default.path}"/>
+				<filtersfile file="${config.properties.path}"/>
+			</filterset>
+		</copy>
+
+		<copy todir="target-ee/enterprise-console" failonerror="false" verbose="false" overwrite="true">
+			<fileset dir="project-${project}/patches/${target-dist}/enterprise-console/">
+				<exclude name="**/*.java"/>
+				<exclude name="**/*.xml"/>
+				<exclude name="**/*.conf"/>
+				<exclude name="**/*.txt"/>
+				<exclude name="**/*.kjb"/>
+				<exclude name="**/*.ktr"/>
+				<exclude name="**/*.js"/>
+				<exclude name="**/*.jsp"/>
+				<exclude name="**/*.properties"/>
+			</fileset>
+		</copy>
+
+		<!-- solution patches hierarchy -->
+		<echo>  Coyping solution patches</echo>
+		<copy todir="target-ee/solution" failonerror="true" verbose="false" overwrite="true" filtering="true">
+			<fileset dir="project-${project}/patches/project-${project}/solution">
+				<include name="**/*.java"/>
+				<include name="**/*.xml"/>
+				<include name="**/*.conf"/>
+				<include name="**/*.txt"/>
+				<include name="**/*.ktr"/>
+				<include name="**/*.kjb"/>
+				<include name="**/*.js"/>
+				<include name="**/*.jsp"/>
+				<include name="**/*.properties"/>
+			</fileset>
+			<filterset>
+				<!-- Unlike properties, filters are overwritten, so we invert the order of the files -->
+				<filtersfile file="${config.properties.default.path}"/>
+				<filtersfile file="${config.properties.path}"/>
+			</filterset>
+		</copy>
+
+		<copy todir="target-ee/solution" failonerror="true" verbose="false" overwrite="true">
+			<fileset dir="project-${project}/patches/project-${project}/solution">
+				<exclude name="**/*.java"/>
+				<exclude name="**/*.xml"/>
+				<exclude name="**/*.conf"/>
+				<exclude name="**/*.txt"/>
+				<exclude name="**/*.ktr"/>
+				<exclude name="**/*.kjb"/>
+				<exclude name="**/*.js"/>
+				<exclude name="**/*.jsp"/>
+				<exclude name="**/*.properties"/>
+			</fileset>
+		</copy>
+
+		<!-- ee-specific patches -->
+		<echo>  copying Enterprise-specific patches</echo>
+		<copy todir="target-ee" failonerror="true" verbose="false" overwrite="true" filtering="true">
+			<fileset dir="project-${project}/patches-ee">
+				<include name="**/*.java"/>
+				<include name="**/*.xml"/>
+				<include name="**/*.conf"/>
+				<include name="**/*.txt"/>
+				<include name="**/*.kjb"/>
+				<include name="**/*.ktr"/>
+				<include name="**/*.js"/>
+				<include name="**/*.jsp"/>
+				<include name="**/*.properties"/>
+			</fileset>
+			<filterset>
+				<!-- Unlike properties, filters are overwritten, so we invert the order of the files -->
+				<filtersfile file="${config.properties.default.path}"/>
+				<filtersfile file="${config.properties.path}"/>
+			</filterset>
+		</copy>
+
+		<copy todir="target-ee" failonerror="true" verbose="false" overwrite="true">
+			<fileset dir="project-${project}/patches-ee">
+				<exclude name="**/*.java"/>
+				<exclude name="**/*.xml"/>
+				<exclude name="**/*.conf"/>
+				<exclude name="**/*.txt"/>
+				<exclude name="**/*.kjb"/>
+				<exclude name="**/*.ktr"/>
+				<exclude name="**/*.js"/>
+				<exclude name="**/*.jsp"/>
+				<exclude name="**/*.properties"/>
+			</fileset>
+		</copy>
+
+		<!-- Copy the solution repositories -->
+		<echo>  Copying solution repositories</echo>
+		<copy todir="target-ee/solution" failonerror="true" verbose="false" overwrite="true">
+			<fileset dir="${solution.path}">
+				<exclude name="**system/**" />
+				<exclude name="**admin/**" />
+			</fileset>
+		</copy>
+	</target>
+
+
+	<target name="dev-setup-common">
+		<!-- not needed for now -->
+		<property name="pentaho.proj.dir" value="."/>
+	</target>
+	
+
+	<target name="dev-compile-dependencies"
+		description="Compile + publish-local pentaho dependencies"
+		if="${compile.pentaho.dependencies}" >
+		
+	    <subant failonerror="false">
+			<target name="clean" />
+			<target name="resolve" />
+			<target name="publish-local" />
+			<dirset dir="${pentaho.dependencies.basedir}" erroronmissingdir="false">
+				<exclude name=".*" />
+				<include name="*" />
+			</dirset>
+			<filelist files="${pentaho.dependencies.list}" />
+		</subant>
+		
+	</target>
+
+
+	<target name="dev-setup-tomcat" depends="" if="choose.Tomcat" >
+
+		<property name="tomcat.dir"  value="${tomcat.path}"/>
+
+		<!-- Check for biserver-ce stage directory. -->
+		<!-- Pentaho pre-sugar -->
+		<condition property="build.server.dir" value="${pentaho.build.dir}/tomcat-pci-test/biserver-ce">
+			 <available file="${pentaho.build.dir}/bi-platform-build" />
+		</condition>
+		<!-- Pentaho sugar -->
+		<condition property="build.server.dir" value="${pentaho.build.dir}/assembly/bin/stage/biserver-ce">
+			 <available file="${pentaho.build.dir}/assembly" />
+		</condition>
+		<fail message="FATAL: biserver-ce stage directory not found." unless="build.server.dir"/>
+
+		<property name="target.server.dir" value="${pentaho.proj.dir}/../${target-dist}/"/>
+		<property name="target.server.dir.relative" value="${pentaho.proj.dir}/${target-dist}/"/>
+		<property name="dev.deploy.dir" value="${target.server.dir}/server/webapps/"/>
+
+		<!-- properties that will be used on the deploy-war task -->
+		<property name="target.pentaho.war.dir.relative" value="${target.server.dir.relative}/server/webapps/pentaho"/>
+		<property name="target.pentaho-style.war.dir.relative" value="${target.server.dir.relative}/server/webapps/pentaho-style"/>
+		<property name="war.deploy.dir" value="${deploy.dest.server}/server/webapps/"/>
+
+		<!-- Check location of dev_build.xml: -->
+		<!-- Pentaho pre-sugar -->
+		<condition property="dev_build.dir" value="${pentaho.build.dir}/bi-platform-build">
+			 <available file="${pentaho.build.dir}/bi-platform-build" />
+		</condition>
+		<!-- Pentaho sugar -->
+		<condition property="dev_build.dir" value="${pentaho.build.dir}">
+			 <available file="${pentaho.build.dir}/assembly" />
+		</condition>
+		
+		<!-- compile pentaho dependencies -->
+		<antcall target="dev-compile-dependencies" />
+		<!-- build pentaho platform -->
+		<ant dir="${dev_build.dir}" antfile="dev_build.xml" target="dev-rebuild" inheritAll="true"/>
+
+		<!-- Since version 3, there are operations done in the admin and system folders; We'll copy them to our own solution dir -->
+
+		<echo>Pentaho Build finished. Copying file from ${build.server.dir}/pentaho-solutions/ to ${solution.path}/</echo>
+
+		<delete dir="${solution.path}/system" failonerror="true"/>
+		<delete dir="${solution.path}/admin" failonerror="true"/>
+		<copy todir="${solution.path}" failonerror="true" verbose="false">
+			<fileset dir="${build.server.dir}/pentaho-solutions/">
+				<include name="admin/**"/>
+				<include name="system/**"/>
+			</fileset>
+		</copy>
+
+		<!-- Copy solutions, if flag is true -->
+		<antcall target="copy-samples"/>
+
+
+		<!-- Do our deploy to ${target-dist} --> 
+		
+		<copy todir="${pentaho.proj.dir}/${target-dist}/server" failonerror="true" verbose="false">
+			<fileset dir="${build.server.dir}/tomcat" />
+		</copy>
+		
+		<copy todir="${pentaho.proj.dir}/${target-dist}/administration-console" failonerror="false" verbose="false">
+			<fileset dir="${build.server.dir}/administration-console" />
+		</copy>
+		
+		<copy todir="${pentaho.proj.dir}/${target-dist}/licenses" failonerror="true" verbose="false">
+			<fileset dir="${build.server.dir}/licenses" />
+		</copy>
+		
+		<!-- since tomcat replaces some files, we may need to patch again -->
+		<echo>Applying patches for the second time</echo>
+		<antcall target="copy-init" />
+
+	</target>
+
+
+	<target name="copy-samples" if="copy.samples">
+		<delete dir="${solution.path}/bi-developers" failonerror="true"/>
+		<delete dir="${solution.path}/steel-wheels" failonerror="true"/>
+		<copy todir="${solution.path}" failonerror="true" verbose="false">
+			<fileset dir="${build.server.dir}/pentaho-solutions/">
+				<include name="steel-wheels/**"/>
+				<include name="bi-developers/**"/>
+			</fileset>
+		</copy>
+	</target>
+
+
+	<target name="dev-setup-jboss" depends="" if="choose.JBoss" >
+
+		<property name="target.server.dir" value="${pentaho.proj.dir}/../target-preconfiguredinstall"/>
+		<property name="target.server.dir.relative" value="${pentaho.proj.dir}/target-preconfiguredinstall"/>
+		<property name="dev.deploy.dir" value="${target.server.dir}/server/default/deploy"/>
+
+		<!-- properties that will be used on the deploy-war task -->
+		<property name="target.pentaho.war.dir.relative" value="${target.server.dir.relative}/server/default/deploy/pentaho.war"/>
+		<property name="target.pentaho-style.war.dir.relative" value="${target.server.dir.relative}/server/default/deploy/pentaho-style.war"/>
+		<property name="war.deploy.dir" value="${deploy.dest.server}/server/default/deploy/"/>
+
+		<fail message="FATAL: Jboss config not available yet"/>
+	
+	</target>
+
+
+	<target name="dev-setup" description="Compiles and builds the entire project" depends="copy-init,dev-setup-common,dev-setup-jboss,dev-setup-tomcat" >
+
+	</target>
+
+	<target name="copy-finish" depends="dev-setup" description="Copy target files">
+		<!-- apply patches - Not sure if I need this -->
+	</target>
+
+
+	<target name="all" description="Compiles and builds the entire project" depends="copy-finish,-ctools-installer-auto" />
+
+
+	<!-- Clean targets -->
+
+	<target name="clean" description="Cleans the solution" depends="copy-init" >
+		<delete dir="project-${project}/solution/system/content" failonerror="true"/>
+		<mkdir dir="project-${project}/solution/system/content"/>
+		<delete dir="project-${project}/solution/system/tmp" failonerror="true"/>
+		<mkdir dir="project-${project}/solution/system/tmp"/>
+		<delete dir="target-preconfiguredinstall/server/default/deploy/pentaho.war" failonerror="false" />
+		<delete dir="${target-dist}/server/webapps/pentaho" failonerror="false" />
+		<ant dir="${pentaho.build.dir}" antfile="dev_build.xml" target="clean" inheritAll="true"/>
+	</target>
+
+	<target name="dist-clean" description="Deletes the target preconfigured install dir" >
+		<delete dir="${pentaho.build.dir}" failonerror="false"/>
+		<delete dir="${target-dist}" failonerror="false"/>
+	</target>
+
+
+
+	<!-- Run targets -->
+
+	<target name="run" description="Runs the solution" depends="run-tomcat,run-jboss"/>
+
+	<target name="run-jboss" if="choose.JBoss" >
+		<exec executable="sh" os="Linux,Mac OS,Mac OS X,Solaris,SunOS,MPE/iX,HP-UX,AIX,FreeBSD,Irix,Digital Unix,NetWare 4.11,OSF1,OpenVMS">
+			<arg line="-c 'chmod +x target-preconfiguredinstall/bin/*.sh'"/>
+		</exec>
+		<exec executable="target-preconfiguredinstall/bin/run.sh" os="Linux,Mac OS,Mac OS X,Solaris,SunOS,MPE/iX,HP-UX,AIX,FreeBSD,Irix,Digital Unix,NetWare 4.11,OSF1,OpenVMS">
+			<arg line="-b 0.0.0.0"/>
+			<env key="JAVA_OPTS" value="${java.opts}" />
+		</exec>
+		
+		<!-- Windows OS Family -->
+		<exec executable="target-preconfiguredinstall/bin/catalina.bat" os="Windows 95,Windows 98,Windows Me,Windows NT,Windows XP,Windows 2003,Windows CE,Windows Vista">
+			<arg line="run"/>
+			<env key="JAVA_OPTS" value="${java.opts}" />
+		</exec>
+	</target>
+
+
+	<target name="run-tomcat" if="choose.Tomcat" >
+
+		<!-- Linux and Mac -->
+		<exec executable="sh" os="Linux,Mac OS,Mac OS X,Solaris,SunOS,MPE/iX,HP-UX,AIX,FreeBSD,Irix,Digital Unix,NetWare 4.11,OSF1,OpenVMS">
+			<arg line="-c 'chmod +x ${target-dist}/server/bin/*.sh'"/>
+		</exec>
+		<exec executable="${target-dist}/server/bin/catalina.sh" os="Linux,Mac OS,Mac OS X,Solaris,SunOS,MPE/iX,HP-UX,AIX,FreeBSD,Irix,Digital Unix,NetWare 4.11,OSF1,OpenVMS">
+			<arg line="run"/>
+			<env key="JAVA_OPTS" value="${java.opts}" />
+			<env key="CATALINA_HOME" value="${target-dist}/server" />
+		</exec>
+		
+		<!-- Windows OS Family -->
+		<exec executable="${target-dist}/server/bin/catalina.bat" os="Windows 95,Windows 98,Windows Me,Windows NT,Windows XP,Windows 2003,Windows CE,Windows Vista">
+			<arg line="run"/>
+			<env key="JAVA_OPTS" value="${java.opts}" />
+			<env key="CATALINA_HOME" value="${target-dist}/server" />
+		</exec>
+	</target>
+
+
+	<target name="-ctools-installer-auto" description="Install ctools silently" depends="copy-finish,ctools-installer-auto" if="install.ctools"/>
+
+	<target name="ctools-installer-auto" description="Install ctools silently" depends="dev-setup-common">
+		<exec executable="/bin/bash" failonerror="true">
+			<arg value = "ctools-installer.sh" />
+			<arg value = "-s" />
+			<arg value = "${solution.path}" />
+			<arg value = "-w" />
+			<arg value = "${pentaho.proj.dir}/${target-dist}/server/webapps/pentaho"/>
+			<arg value = "-b"/>
+			<arg value = "${ctools.branch}"/>
+			<arg value = "-y"/>
+		</exec>
+	</target>
+
+	<target name="ctools-installer" description="Install ctools (prompts for modules)" depends="dev-setup-common">
+		<exec executable="/bin/bash" failonerror="true">
+			<arg value = "ctools-installer.sh" />
+			<arg value = "-n" />
+			<arg value = "-s" />
+			<arg value = "${solution.path}" />
+			<arg value = "-w" />
+			<arg value = "${pentaho.proj.dir}/${target-dist}/server/webapps/pentaho"/>
+			<arg value = "-b"/>
+			<arg value = "${ctools.branch}"/>
+		</exec>
+	</target>
+
+
+	<!-- Deploy targets -->
+
+
+	<target name="deploy-repository" description="Deploys the solution repository to the specified destination" depends="deploy-repository-rsync" />
+	
+
+	<target name="deploy-repository-rsync" if="deploy.mode.rsync" depends="all">
+		<fail message="FATAL: Solution destination directory not specified (deploy.dest.solution)" unless="deploy.dest.solution"/>
+		<exec executable="rsync">
+			<arg line=" --exclude=system --exclude=admin ${deploy.args} ${solution.path}/ ${deploy.dest.solution}/" />
+		</exec>
+	</target>
+
+	<target name="deploy-solution" description="Deploys the solution to the specified destination" depends="deploy-solution-rsync" />
+	
+
+	<target name="deploy-solution-rsync" if="deploy.mode.rsync" depends="all">
+		<fail message="FATAL: Solution destination directory not specified (deploy.dest.solution)" unless="deploy.dest.solution"/>
+		<exec executable="rsync">
+			<arg line="${deploy.args} ${solution.path}/ ${deploy.dest.solution}/" />
+		</exec>
+	</target>
+
+	<target name="deploy-server" description="Deploys the entire server to the specified destination" depends="deploy-server-rsync" />
+
+	<target name="deploy-server-rsync" if="deploy.mode.rsync" depends="all">
+		<fail message="FATAL: Server destination directory not specified (deploy.dest.server)" unless="deploy.dest.server"/>
+		<exec executable="rsync">
+			<arg line="${deploy.args} ${target.server.dir.relative}/ ${deploy.dest.server}/" />
+		</exec>
+	</target>
+
+	<target name="deploy-war" description="Deploys the pentaho.war and pentaho-style.war to the specified destination" depends="deploy-war-rsync" />
+
+	<target name="deploy-war-rsync" if="deploy.mode.rsync" depends="all">
+		<fail message="FATAL: Server destination directory not specified (deploy.dest.server)" unless="deploy.dest.server"/>
+		<echo>Deploying pentaho.war</echo>
+		<exec executable="rsync">
+			<arg line="${deploy.args} ${target.pentaho.war.dir.relative} ${war.deploy.dir}/" />
+		</exec>
+		<echo>Deploying pentaho-style.war</echo>
+		<exec executable="rsync">
+			<arg line="${deploy.args} ${target.pentaho-style.war.dir.relative} ${war.deploy.dir}/" />
+		</exec>
+	</target>
+
+	<target name="deploy-all" description="Deploys both the solution and the server to the specified destinations" depends="all, deploy-solution,deploy-server"/>
+
+	<target name="deploy-ee-solution" description="Deploys the solution to the specified destination" depends="stage-ee,deploy-ee-solution-rsync" />
+	
+	<target name="deploy-ee-solution-rsync" if="deploy.mode.rsync">
+		<fail message="FATAL: Solution destination directory not specified (deploy.dest.solution)" unless="deploy.dest.solution"/>
+		<exec executable="rsync">
+			<arg line="${deploy.args} target-ee/solution/ ${deploy.dest.solution}" />
+		</exec>
+	</target>
+
+	<target name="deploy-ee-server" description="Deploys the entire server to the specified destination" depends="stage-ee,deploy-ee-server-rsync" />
+
+	<target name="deploy-ee-server-rsync" if="deploy.mode.rsync">
+		<fail message="FATAL: Server destination directory not specified (deploy.dest.server)" unless="deploy.dest.server"/>
+		<exec executable="rsync">
+			<arg line="${deploy.args} target-ee/server/ ${deploy.dest.server}/tomcat" />
+		</exec>
+		<exec executable="rsync">
+			<arg line="${deploy.args} target-ee/enterprise-console/ ${deploy.dest.server}/../enterprise-console/" />
+		</exec>
+	</target>
+
+	<target name="deploy-ee-all" description="Deploys both the solution and the server to the specified destinations" depends="stage-ee,deploy-ee-solution,deploy-ee-server"/>
+</project>
