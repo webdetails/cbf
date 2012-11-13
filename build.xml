@@ -503,9 +503,7 @@
 	</target>
 
 
-	<target name="-ctools-installer-auto" description="Install ctools silently" depends="copy-finish,ctools-installer-auto" if="install.ctools"/>
-
-	<target name="ctools-installer-auto" description="Install ctools silently" depends="dev-setup-common">
+	<target name="-ctools-installer-auto" description="Install ctools silently" depends="dev-setup-common" if="install.ctools">
 		<exec executable="/bin/bash" failonerror="true">
 			<arg value = "ctools-installer.sh" />
 			<arg value = "-s" />
