@@ -15,9 +15,12 @@
 	</condition>
 
 	<property name="target-dist" value="target-dist"/>
+    <property name="dist" value="dist"/>
 
+    
 	<property name="config.properties.path" value="project-${project}/config/${config.properties}"/>
 	<property name="config.properties.default.path" value="project-${project}/config/build.properties"/>
+    <property name="config.path" value="project-${project}/config"/>
 
 	<available file="${config.properties.path}" type="file" property="config.properties.exists"/>
 	<fail message="FATAL: Configuration file not found at ${config.properties.path}" unless="config.properties.exists"/>
@@ -600,4 +603,79 @@
 	</target>
 
 	<target name="deploy-ee-all" description="Deploys both the solution and the server to the specified destinations" depends="stage-ee,deploy-ee-solution,deploy-ee-server"/>
+	
+	
+	<!-- Puppet targets -->
+	
+	<target name="create-dist" description="Creates a tgz file with pentaho, pentaho-style and ROOT folders - to be used with a puppet script">
+	    <tar destfile="${dist}/webdetails-pentaho.tgz" compression="gzip"
+	        basedir="${target-dist}/server/webapps/" 
+	        includes="pentaho/**, pentaho-style/**, ROOT/**"/>	    
+	    <tar destfile="${dist}/webdetails-pentaho-adminconsole.tgz" compression="gzip"
+	        basedir="${target-dist}/administration-console/" 
+	        includes="**"
+        />	    	        
+	    <tar destfile="${dist}/webdetails-pentaho-solution.tgz" compression="gzip"
+	        basedir="${solution.path}" 
+	        includes="admin/**, system/**, ui/**, *.*"/>	    	        	        
+	</target>
+	
+	
+	<target name="create-rpms" description="Creates rpms based on the specs found on the config/rpm folder for the solution" depends="create-dist">
+	    <!-- Create folders needed for rpm if they do not exist -->
+	    <mkdir dir="${dist}/rpm"/>
+	    <mkdir dir="${dist}/rpm/SOURCES"/>
+	    <mkdir dir="${dist}/rpm/BUILD"/>
+	    <mkdir dir="${dist}/rpm/BUILDROOT"/>	    
+	    <mkdir dir="${dist}/rpm/SPECS"/>	    	    
+	    <mkdir dir="${dist}/rpm/RPMS"/>	    	    
+	    <mkdir dir="${dist}/rpm/SRPMS"/>	    	    	    
+
+    	<!-- Copia tgz para SOURCE -->
+		<copy todir="${dist}/rpm/SOURCES" failonerror="true" verbose="false" overwrite="true">
+			<fileset dir="${dist}">
+				<include name="*.tgz"/>
+			</fileset>
+		</copy>
+
+    	<!-- Copia specs de config/rpm para dist/rpm/SPECS -->
+
+
+      <tstamp>
+        <format property="current.day" pattern="yy.MM.dd"/>
+      </tstamp>
+    	
+    	
+		<copy todir="${dist}/rpm/SPECS" failonerror="true" verbose="false" overwrite="true">
+			<fileset dir="${config.path}/rpm">
+				<include name="*.spec"/>
+			</fileset>
+			<filterset>
+    			<filter token="VERSION" value="${current.day}"/>
+			</filterset>						
+		</copy>
+    	
+	    <!-- Copia makefile de config/rpm para dist/rpm/BUILD -->
+		<copy todir="${dist}/rpm/BUILD" failonerror="true" verbose="false" overwrite="true">
+			<fileset dir="${config.path}/rpm">
+				<include name="makefile"/>
+			</fileset>
+		</copy>
+
+
+	
+    	<!-- Lança os rpmbuilds -->
+        <apply executable="rpmbuild">
+	        <arg value="-bb"/>
+	        <arg value="--buildroot"/>
+	        <arg value="${dist}/rpm"/>
+
+	        <fileset dir="${dist}/rpm/SPECS/" includes="*.spec"/>	        
+        </apply>
+	        
+	    
+	</target>
+	
+	
+	
 </project>
