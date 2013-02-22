@@ -15,7 +15,7 @@
 	</condition>
 
 	<property name="target-dist" value="target-dist"/>
-    <property name="dist" value="dist"/>
+    <property name="dist" value="${basedir}/dist"/>
 
     
 	<property name="config.properties.path" value="project-${project}/config/${config.properties}"/>
@@ -29,6 +29,12 @@
 	<property file="${config.properties.default.path}"/>
 	
 	<property name="jre.dir" value="../dummy-jre" />
+
+	<!-- Rpm build properties. This is the default for CE.
+	For EE, we need to point to the final EE build, after a deploy-ee-all -->
+	<property name="rpm.source.webapp" value="${target-dist}/server/webapps/"/>
+	<property name="rpm.source.solution" value="${solution.path}"/>
+	<property name="rpm.source.administration-console" value="${target-dist}/administration-console/"/>
 
 	<!-- Ctools installer properties -->
 	<property name="ctools.install" value="false"/>
@@ -607,21 +613,21 @@
 	
 	<!-- Puppet targets -->
 	
-	<target name="create-dist" description="Creates a tgz file with pentaho, pentaho-style and ROOT folders - to be used with a puppet script">
+	<target name="create-rpm-dist" description="Creates a tgz file with pentaho, pentaho-style and ROOT folders - to be used with a puppet script">
 	    <tar destfile="${dist}/webdetails-pentaho.tgz" compression="gzip"
-	        basedir="${target-dist}/server/webapps/" 
+	        basedir="${rpm.source.webapp}" 
 	        includes="pentaho/**, pentaho-style/**, ROOT/**"/>	    
 	    <tar destfile="${dist}/webdetails-pentaho-adminconsole.tgz" compression="gzip"
-	        basedir="${target-dist}/administration-console/" 
+	        basedir="${rpm.source.administration-console}" 
 	        includes="**"
         />	    	        
 	    <tar destfile="${dist}/webdetails-pentaho-solution.tgz" compression="gzip"
-	        basedir="${solution.path}" 
+	        basedir="${rpm.source.solution}" 
 	        includes="admin/**, system/**, ui/**, *.*"/>	    	        	        
 	</target>
 	
 	
-	<target name="create-rpms" description="Creates rpms based on the specs found on the config/rpm folder for the solution" depends="create-dist">
+	<target name="create-rpms" description="Creates rpms based on the specs found on the config/rpm folder for the solution" depends="create-rpm-dist">
 	    <!-- Create folders needed for rpm if they do not exist -->
 	    <mkdir dir="${dist}/rpm"/>
 	    <mkdir dir="${dist}/rpm/SOURCES"/>
@@ -631,14 +637,14 @@
 	    <mkdir dir="${dist}/rpm/RPMS"/>	    	    
 	    <mkdir dir="${dist}/rpm/SRPMS"/>	    	    	    
 
-    	<!-- Copia tgz para SOURCE -->
+    	<!-- Copies tgz to SOURCE -->
 		<copy todir="${dist}/rpm/SOURCES" failonerror="true" verbose="false" overwrite="true">
 			<fileset dir="${dist}">
 				<include name="*.tgz"/>
 			</fileset>
 		</copy>
 
-    	<!-- Copia specs de config/rpm para dist/rpm/SPECS -->
+    	<!-- Copies specs from config/rpm to dist/rpm/SPECS -->
 
 
       <tstamp>
@@ -655,7 +661,7 @@
 			</filterset>						
 		</copy>
     	
-	    <!-- Copia makefile de config/rpm para dist/rpm/BUILD -->
+	    <!-- Copies makefile from config/rpm to dist/rpm/BUILD -->
 		<copy todir="${dist}/rpm/BUILD" failonerror="true" verbose="false" overwrite="true">
 			<fileset dir="${config.path}/rpm">
 				<include name="makefile"/>
@@ -663,13 +669,12 @@
 		</copy>
 
 
+		<!-- Apparently, buildroot is no longer supported. We'll do a symlink -->
+		<symlink link="${user.home}/rpmbuild" resource="${dist}/rpm" overwrite="true" />
 	
-    	<!-- Lança os rpmbuilds -->
-        <apply executable="rpmbuild">
+    	<!-- call rpmbuilds -->
+        <apply dir="." executable="rpmbuild">
 	        <arg value="-bb"/>
-	        <arg value="--buildroot"/>
-	        <arg value="${dist}/rpm"/>
-
 	        <fileset dir="${dist}/rpm/SPECS/" includes="*.spec"/>	        
         </apply>
 	        
