@@ -481,12 +481,14 @@
 		<exec executable="target-preconfiguredinstall/bin/run.sh" os="Linux,Mac OS,Mac OS X,Solaris,SunOS,MPE/iX,HP-UX,AIX,FreeBSD,Irix,Digital Unix,NetWare 4.11,OSF1,OpenVMS">
 			<arg line="-b 0.0.0.0"/>
 			<env key="JAVA_OPTS" value="${java.opts}" />
+			<env key="DI_HOME" value="${solution.path}/system/kettle" />
 		</exec>
 		
 		<!-- Windows OS Family -->
 		<exec executable="target-preconfiguredinstall/bin/catalina.bat" os="Windows 95,Windows 98,Windows Me,Windows NT,Windows XP,Windows 2003,Windows CE,Windows Vista">
 			<arg line="run"/>
 			<env key="JAVA_OPTS" value="${java.opts}" />
+			<env key="DI_HOME" value="${solution.path}/system/kettle" />
 		</exec>
 	</target>
 
@@ -501,6 +503,7 @@
 			<arg line="run"/>
 			<env key="JAVA_OPTS" value="${java.opts}" />
 			<env key="CATALINA_HOME" value="${target-dist}/server" />
+			<env key="DI_HOME" value="${solution.path}/system/kettle" />
 		</exec>
 		
 		<!-- Windows OS Family -->
@@ -508,6 +511,7 @@
 			<arg line="run"/>
 			<env key="JAVA_OPTS" value="${java.opts}" />
 			<env key="CATALINA_HOME" value="${target-dist}/server" />
+			<env key="DI_HOME" value="${solution.path}/system/kettle" />
 		</exec>
 	</target>
 
